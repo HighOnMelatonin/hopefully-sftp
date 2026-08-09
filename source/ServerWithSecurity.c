@@ -1,10 +1,9 @@
 /**
- * ServerWithoutSecurity.c
+ * ServerWithecurity.c
  * -----------------------
- * Plain FTP server — no encryption, no authentication.
  * Receives files from the client using the length-prefixed wire protocol.
  *
- * Usage: ./ServerWithoutSecurity [PORT] [ADDRESS]
+ * Usage: ./ServerWithSecurity [PORT] [ADDRESS]
  *
  * Received files are saved to recv_files/ with a "recv_" prefix.
  */
@@ -25,6 +24,11 @@ void sigint_handler(int sig)
 
 int main(int argc, char *argv[])
 {
+    if (argc < 3){
+        printf("Usage: %s PORT ADDRESS\n", argv[0]);
+        return 1;
+    }
+
     signal(SIGINT, sigint_handler);
 
     int port = (argc > 1) ? atoi(argv[1]) : 4321;
@@ -81,11 +85,13 @@ int main(int argc, char *argv[])
         uint64_t msg_type = bytes_to_int(type_buf);
         free(type_buf);
 
-        switch (msg_type)
-        {
+        switch (msg_type){
         case MSG_FILENAME:
         {
-            /* If the packet is for transferring the filename */
+            /* 
+            Mode 0
+            If the packet is for transferring the filename
+            */
             printf("Receiving file...\n");
             unsigned char *len_buf = read_bytes(client_fd, INT_BYTES);
             uint64_t fn_len = bytes_to_int(len_buf);
@@ -99,7 +105,10 @@ int main(int argc, char *argv[])
         }
         case MSG_FILE_DATA:
         {
-            /* If the packet is for transferring a chunk of the file */
+            /*
+            Mode 1
+            If the packet is for transferring a chunk of the file
+            */
             double start_time = get_time();
 
             unsigned char *len_buf = read_bytes(client_fd, INT_BYTES);
@@ -128,9 +137,25 @@ int main(int argc, char *argv[])
             break;
         }
         case MSG_CLOSE:
-            /* Close the connection */
+        {
+            /*
+            Mode 2
+            Close the connection
+            */
             printf("Closing connection...\n");
             goto done;
+        }
+        case MSG_AUTH:
+        {
+            /*
+            Mode 3
+            Client begins authentication protocol
+
+            Client sends 2 messages
+            Server sends 4 messages 
+            */
+            
+        }
 
         default:
             fprintf(stderr, "Unknown message type: %lu\n", (unsigned long)msg_type);
