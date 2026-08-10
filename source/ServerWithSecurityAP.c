@@ -150,9 +150,19 @@ int main(int argc, char *argv[])
             /*
             Mode 3
             Client begins authentication protocol
+            Upon successful connect, client must first send 3 (via send_int(sockfd, MSG_AUTH)) to the server,
+            followed by two messages:
+            - M1: The authentication message size in bytes
+            - M2: The authentication message itself
 
-            Client sends 2 messages
-            Server sends 4 messages 
+            The client expects to read 4 messages (2 sets) from the server
+            - Set 1:
+                M1: Size of incoming M2
+                M2: Signed Authentication message
+
+            - Set 2:
+                M3: size of incoming M4
+                M4: server_signed.crt
             */
             
         }

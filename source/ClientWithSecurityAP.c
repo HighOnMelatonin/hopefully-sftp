@@ -13,21 +13,6 @@
 
 int main(int argc, char *argv[])
 {
-    /*
-    Upon successful connect, client must first send 3 (via send_int(sockfd, MSG_AUTH)) to the server,
-    followed by two messages:
-        - M1: The authentication message size in bytes
-        - M2: The authentication message itself
-
-    The client expects to read 4 messages (2 sets) from the server
-        - Set 1:
-            M1: Size of incoming M2
-            M2: Signed Authentication message
-
-        - Set 2:
-            M3: size of incoming M4
-            M4: server_signed.crt
-    */
     int port = (argc > 1) ? atoi(argv[1]) : 4321;
     const char *server_address = (argc > 2) ? argv[2] : "localhost";
 
@@ -62,7 +47,34 @@ int main(int argc, char *argv[])
         return 1;
     }
     printf("Connected\n");
+    /*
+    Upon successful connect, client must first send 3 (via send_int(sockfd, MSG_AUTH)) to the server,
+    followed by two messages:
+        - M1: The authentication message size in bytes
+        - M2: The authentication message itself
 
+    The client expects to read 4 messages (2 sets) from the server
+        - Set 1:
+            M1: Size of incoming M2
+            M2: Signed Authentication message
+
+        - Set 2:
+            M3: size of incoming M4
+            M4: server_signed.crt
+    */
+    // Checking server ID
+    char authFile[1024];
+    if (!fgets((authFile), sizeof(authFile), stdin))
+    {
+        printf("Auth file not found");
+        exit(0);
+    }
+
+    send_int(sockfd, MSG_AUTH);
+    send_int(sockfd, 1024);         // M1
+    send_all(sockfd, authFile);     // M2
+
+    // 
     /* Interactive file sending loop */
     while (1)
     {
