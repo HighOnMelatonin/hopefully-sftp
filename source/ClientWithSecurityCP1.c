@@ -1,0 +1,252 @@
+/**
+ * ClientWithSecurity.c
+ * -----------------------
+ * Sends files to the server using the length-prefixed wire protocol.
+ *
+ * Usage: ./ClientWithSecurity [PORT] [ADDRESS]
+ *
+ * Wire protocol (all lengths are 8-byte big-endian):
+ *   [MSG_FILENAME=0][filename_len][filename_bytes]
+ */
+
+#include "libs/common.h"
+
+int main(int argc, char *argv[])
+{
+    int port = (argc > 1) ? atoi(argv[1]) : 4321;
+    const char *server_address = (argc > 2) ? argv[2] : "localhost";
+
+    double start_time = get_time();
+
+    printf("Establishing connection to server...\n");
+
+    /* Create TCP socket and connect to server */
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0)
+    {
+        perror("socket");
+        return 1;
+    }
+
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port);
+
+    struct hostent *he = gethostbyname(server_address);
+    if (!he)
+    {
+        fprintf(stderr, "Cannot resolve host: %s\n", server_address);
+        return 1;
+    }
+    memcpy(&serv_addr.sin_addr, he->h_addr_list[0], he->h_length);
+
+    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+    {
+        perror("connect");
+        return 1;
+    }
+    /*
+    Upon successful connect, client must first send 3 (via send_int(sockfd, MSG_AUTH)) to the server,
+    followed by two messages:
+        - M1: The authentication message size in bytes
+        - M2: The authentication message itself
+
+    The client expects to read 4 messages (2 sets) from the server
+        - Set 1:
+            M1: Size of incoming M2
+            M2: Signed Authentication message
+
+        - Set 2:
+            M3: size of incoming M4
+            M4: server_signed.crt
+    */
+    // Checking server ID
+    // Sending authentication message, producing a random string
+    char message[128];
+    const size_t message_len = 32;
+    unsigned char random_bytes[message_len];
+    if (RAND_bytes(random_bytes, message_len) != 1)
+    {
+        print_ssl_error("RAND_bytes");
+        return 1;
+    }
+    const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                           "abcdefghijklmnopqrstuvwxyz"
+                           "0123456789";
+    for (size_t i = 0; i < message_len; i++)
+    {
+        message[i] = charset[random_bytes[i] % (sizeof(charset) - 1)];
+    }
+    message[message_len] = '\0';
+
+    send_int(sockfd, MSG_AUTH);
+    send_int(sockfd, message_len);                                  // M1
+    send_all(sockfd, (unsigned char*) message, message_len);       // M2
+
+    printf("Waiting for verification from server...\n");
+
+    /* Get Set 1: signed message */
+    unsigned char *len_buf = read_bytes(sockfd, INT_BYTES);
+    uint64_t sig_len = bytes_to_int(len_buf);
+    free(len_buf);
+    unsigned char *signedMsg = read_bytes(sockfd, sig_len);
+    if (!signedMsg)
+        goto done;
+
+    /* Get Set 2: server certificate */
+    len_buf = read_bytes(sockfd, INT_BYTES);
+    uint64_t cert_len = bytes_to_int(len_buf);
+    free(len_buf);
+    unsigned char *serverCert = read_bytes(sockfd, cert_len);
+    if (!serverCert)
+    {
+        free(signedMsg);
+        goto done;
+    }
+
+    // Check cert
+    X509 *loadedCert = load_cert_bytes(serverCert, cert_len);
+    if (!loadedCert || !verify_server_cert(loadedCert, "auth/cacsertificate.crt"))
+    {
+        printf("Server verification failed, exiting\n");
+        printf("Failed to verify cert\n");
+        if (loadedCert)
+            X509_free(loadedCert);
+        free(signedMsg);
+        free(serverCert);
+        send_int(sockfd, MSG_CLOSE);
+        printf("Closing connection...\n");
+        close(sockfd);
+        exit(0);
+    }
+
+    // Check message
+    if (!verify_message_pss(loadedCert, signedMsg, sig_len, (unsigned char*) message, message_len))
+    {
+        printf("Server verification failed, exiting\n");
+        printf("Failed to verify message\n");
+        X509_free(loadedCert);
+        free(signedMsg);
+        free(serverCert);
+        send_int(sockfd, MSG_CLOSE);
+        printf("Closing connection...\n");
+        close(sockfd);
+        exit(0);
+    }
+    // Get Key
+    EVP_PKEY *public_key = X509_get_pubkey(loadedCert);
+    if(!public_key){
+        printf("Public key could not be extracted");
+        X509_free(loadedCert);
+        EVP_PKEY_free(public_key);
+        free(signedMsg);
+        free(serverCert);
+        send_int(sockfd, MSG_CLOSE);
+        printf("Closing connection...\n");
+        close(sockfd);
+        exit(0);
+    }
+
+    X509_free(loadedCert);
+    free(signedMsg);
+    free(serverCert);
+
+    // Checks done, server connected
+    printf("Connected\n");
+
+    /* Interactive file sending loop */
+    while (1)
+    {
+        char filename[4096];
+        printf("Enter a filename to send (enter -1 to exit):");
+        if (!fgets(filename, sizeof(filename), stdin))
+            break;
+
+        /* Strip trailing newline */
+        filename[strcspn(filename, "\n")] = '\0';
+
+        /* Validate filename */
+        while (strcmp(filename, "-1") != 0)
+        {
+            struct stat st;
+            if (stat(filename, &st) == 0 && S_ISREG(st.st_mode))
+                break;
+            printf("Invalid filename. Please try again:");
+            if (!fgets(filename, sizeof(filename), stdin))
+                goto done;
+            filename[strcspn(filename, "\n")] = '\0';
+        }
+
+        if (strcmp(filename, "-1") == 0)
+        {
+            send_int(sockfd, MSG_CLOSE);
+            break;
+        }
+
+        /* Send the filename: [0][len][bytes] */
+        size_t fn_len = strlen(filename);
+        send_int(sockfd, MSG_FILENAME);
+        send_int(sockfd, fn_len);
+        send_all(sockfd, (unsigned char *)filename, fn_len);
+
+        /* Read the entire file into memory */
+        FILE *fp = fopen(filename, "rb");
+        if (!fp)
+        {
+            perror("fopen");
+            continue;
+        }
+        fseek(fp, 0, SEEK_END);
+        long file_size = ftell(fp);
+        fseek(fp, 0, SEEK_SET);
+
+        unsigned char *file_data = malloc(file_size);
+        fread(file_data, 1, file_size, fp);
+        fclose(fp);
+        // Encryption Below
+        size_t enc_file_size;
+        unsigned char *enc_file_data;
+        if (file_size ==0){
+            size_t enc_file_size = 128; // because only 1 block cause empty
+            size_t out_len = 0;
+            unsigned char *enc_file_data = rsa_encrypt_block(public_key, NULL, 0, &out_len, 1);
+        }
+        else{
+        size_t enc_file_size = (file_size + 61)/62 * 128; //here 128 is the no of bytes after encryption and 62 is the no of stuff yyou can input with a buffer
+        unsigned char *enc_file_data = malloc(enc_file_size);
+
+        size_t read_data = 0;
+        size_t enc_amount = 0;
+        while (read_data<file_size){
+            size_t copy_len = 62;
+            if (file_size-read_data<62){
+                copy_len = file_size-read_data;
+            }
+            size_t out_len = 0;
+            unsigned char *enc_part = rsa_encrypt_block(public_key, file_data+read_data, copy_len, &out_len, 1);
+            memcpy(enc_file_data+enc_amount, enc_part, out_len);
+            enc_amount += out_len;
+            read_data += copy_len;
+            free(enc_part);
+        }
+        }
+        //encryption end
+        /* Send the file data: [1][len][bytes] */
+        send_int(sockfd, MSG_FILE_DATA);
+        send_int(sockfd, (uint64_t)enc_file_size);
+        send_all(sockfd, enc_file_data, (uint64_t)enc_file_size);
+        free(enc_file_data);
+        free(file_data);
+    }
+
+done:
+    /* Send close message */
+    send_int(sockfd, MSG_CLOSE);
+    printf("Closing connection...\n");
+    close(sockfd);
+
+    double end_time = get_time();
+    printf("Program took %.3fs to run.\n", end_time - start_time);
+    return 0;
+}
