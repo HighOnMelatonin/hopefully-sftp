@@ -74,20 +74,20 @@ int main(int argc, char *argv[])
 
     // Get Set 1: auth message
     unsigned char* len_buf = read_bytes(sockfd, INT_BYTES);
-    uint64_t fn_len = bytes_to_int(len_buf);
-    unsigned char* signedMsg = read_bytes(sockfd, fn_len);
+    uint64_t msg_len = bytes_to_int(len_buf);
+    unsigned char* signedMsg = read_bytes(sockfd, msg_len);
 
     free(len_buf);
 
     // Get Set 2: cert
     len_buf = read_bytes(sockfd, INT_BYTES);
-    fn_len = bytes_to_int(len_buf);
-    unsigned char* serverCert = read_bytes(sockfd, fn_len);
+    uint64_t cert_len = bytes_to_int(len_buf);
+    unsigned char* serverCert = read_bytes(sockfd, cert_len);
 
     free(len_buf);
 
     // Check cert
-    X509* loadedCert = load_cert_bytes(serverCert, sizeof(serverCert));
+    X509* loadedCert = load_cert_bytes(serverCert, cert_len);
     if (!verify_server_cert(loadedCert, "auth/cacsertificate.crt")){
         printf("Server verification failed, exiting\n");
         printf("Failed to verify cert\n");
@@ -99,7 +99,7 @@ int main(int argc, char *argv[])
     }
 
     // Check message
-    if (!verify_message_pss(loadedCert, signedMsg, sizeof(signedMsg), (unsigned char*) message, sizeof(message))){
+    if (!verify_message_pss(loadedCert, signedMsg, msg_len, (unsigned char*) message, sizeof(message))){
         printf("Server verification failed, exiting\n");
         printf("Failed to verify message\n");
 
@@ -111,7 +111,6 @@ int main(int argc, char *argv[])
 
     free(signedMsg);
     free(serverCert);
-    free(message);
 
     // Checks done, server connected
     printf("Connected\n");

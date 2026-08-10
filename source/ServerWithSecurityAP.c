@@ -169,26 +169,31 @@ int main(int argc, char *argv[])
             unsigned char *len_buf = read_bytes(client_fd, INT_BYTES);
             uint64_t fn_len = bytes_to_int(len_buf);
             unsigned char* authFile = read_bytes(client_fd, fn_len);
-            size_t *sig_len = strlen(authFile);
+            size_t *sig_len;
 
             // Sign client's message
             EVP_PKEY* priv_key = load_private_key("private_key.pem");
-            authFile = sign_message_pss(priv_key, authFile, fn_len, sig_len);
+            unsigned char *signature = sign_message_pss(priv_key, authFile, fn_len, sig_len);
 
             // Sending set 1
-            send_int(client_fd, 1024);
-            send_all(client_fd, authFile, 1024);
+            send_int(client_fd, 128);
+            send_all(client_fd, authFile, 128);
 
             free(priv_key);
             free(authFile);
 
             // Sending set 2
             X509* serverCert = load_cert_file("server_signed.crt");
-            send_int(client_fd, sizeof(serverCert));
-            send_all(client_fd, serverCert, sizeof(serverCert));
+            unsigned char *cert_buf = NULL;
+            int cert_len = i2d_X509(serverCert, &cert_buf);
 
-            free(serverCert);
+            send_int(client_fd, cert_len);
+            send_all(client_fd, cert_buf, cert_len);
 
+            EVP_PKEY_free(priv_key);
+            OPENSSL_free(cert_buf);
+            X509_free(serverCert);
+            break;
         }
 
         default:
