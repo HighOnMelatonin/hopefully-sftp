@@ -64,34 +64,27 @@ int main(int argc, char *argv[])
     // Checking server ID
     // Sending authentication message
     char message[1024];
-    if (!fgets((message), sizeof(message), stdin))
-    {
-        printf("Auth file not found");
-        exit(0);
-    }
 
     send_int(sockfd, MSG_AUTH);
     send_int(sockfd, sizeof(message));                 // M1
-    send_all(sockfd, message, sizeof(message));       // M2
+    send_all(sockfd, (unsigned char*) message, sizeof(message));       // M2
 
-    listen(server_address, 1);
-    printf("Waiting for verification from %s:%d...\n", serv_addr, port);
+    listen(sockfd, 1);
+    printf("Waiting for verification from server...\n");
 
     // Get Set 1: auth message
     unsigned char* len_buf = read_bytes(sockfd, INT_BYTES);
     uint64_t fn_len = bytes_to_int(len_buf);
-    char* signedMsg = read_bytes(sockfd, fn_len);
+    unsigned char* signedMsg = read_bytes(sockfd, fn_len);
 
     free(len_buf);
-    free(fn_len);
 
     // Get Set 2: cert
-    unsigned char* len_buf = read_bytes(sockfd, INT_BYTES);
-    uint64_t fn_len = bytes_to_int(len_buf);
-    char* serverCert = read_bytes(sockfd, fn_len);
+    len_buf = read_bytes(sockfd, INT_BYTES);
+    fn_len = bytes_to_int(len_buf);
+    unsigned char* serverCert = read_bytes(sockfd, fn_len);
 
-    free(len_buf)
-    free(fn_len)
+    free(len_buf);
 
     // Check cert
     if (!verify_server_cert(serverCert, "auth/cacsertificate.crt")){
@@ -123,7 +116,6 @@ int main(int argc, char *argv[])
     // Checks done, server connected
     printf("Connected\n");
 
-    // 
     /* Interactive file sending loop */
     while (1)
     {
