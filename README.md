@@ -10,13 +10,15 @@ This assignment requires knowledge from Network Security and basic knowledge in 
     - [Build](#build)
     - [Run server and client files](#run-server-and-client-files)
     - [Using different machines](#using-different-machines)
+    - [Uploading multiple files](#uploading-multiple-files)
   - [Testing](#testing)
     - [Adding your own unit tests](#adding-your-own-unit-tests)
     - [Adding your own integration tests](#adding-your-own-integration-tests)
     - [AI-Assisted Unit Test Generation](#ai-assisted-unit-test-generation)
   - [Intellisense Setup (VS)](#intellisense-setup-vs)
   - [Sustainability and Inclusivity Features](#sustainability-and-inclusivity-features)
-    - [Inclusivity Feature:](#inclusivity-feature)
+    - [Sustainability Features:](#sustainability-features)
+    - [Inclusivity Features:](#inclusivity-features)
 
 ## Group Members
 <table>
@@ -127,6 +129,9 @@ The client computer can connect to it using the command:
 ```sh
 ./ClientWithoutSecurity [PORT] [SERVER-IP-ADDRESS]
 ```
+
+### Uploading multiple files
+After sending 1 file, the program will prompt the user for more file uploads or to exit the program, so to send more than 1 file, just upload another file at the next prompt
 
 ## Testing
 
@@ -267,7 +272,10 @@ Reload the VS Code window after editing (Cmd/Ctrl+Shift+P, then "Developer: Relo
 This only affects the editor. The Makefile already detects Homebrew's prefix via `brew --prefix openssl` and passes the include path to the compiler, so `make` works regardless of whether you set this up.
 
 ## Sustainability and Inclusivity Features
-### Inclusivity Feature:
+### Sustainability Features:
+File data is written directly to `recv_files/recv_<name>` as it is decrypted, rather than buffering large amounts in memory
+
+### Inclusivity Features:
 Server and client side prints messages like "Waiting for verification..." to keep users informed about wait times, allowing non-tech savvy users to understand what their devices are doing during the handshake.
 
 Client side also prints an error message when the verification fails, to let the user know about the failed handshake. The specific reason for this failure is kept hidden (could not verify cert or could not verify message) to reduce the likelihood of malicious users gaining useful information about which part of the handshake failed.
