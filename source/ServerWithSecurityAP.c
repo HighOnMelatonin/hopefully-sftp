@@ -164,7 +164,31 @@ int main(int argc, char *argv[])
                 M3: size of incoming M4
                 M4: server_signed.crt
             */
-            
+            printf("Receiving auth message");
+
+            unsigned char *len_buf = read_bytes(client_fd, INT_BYTES);
+            uint64_t fn_len = bytes_to_int(len_buf);
+            char* authFile = read_bytes(client_fd, fn_len);
+
+            // Sign client's message
+            char* priv_key = load_private_key("private_key.pem");
+            authFile = sign_message_pss(priv_key, authFile, fn_len, 1024);
+
+            // Sending set 1
+            send_int(client_fd, 1024);
+            send_all(client_fd, authFile, 1024);
+
+            free(priv_key);
+            free(authFile);
+            free(fn_len);
+
+            // Sending set 2
+            char* serverCert = load_cert_file("server_signed.crt");
+            send_int(client_fd, sizeof(serverCert));
+            send_all(client_fd, serverCert, sizeof(serverCert));
+
+            free(serverCert);
+
         }
 
         default:
