@@ -1,6 +1,38 @@
 # 50.005 Programming Assignment 2 (C / OpenSSL)
-
 This assignment requires knowledge from Network Security and basic knowledge in C.
+
+- [50.005 Programming Assignment 2 (C / OpenSSL)](#50005-programming-assignment-2-c--openssl)
+  - [Group Members](#group-members)
+  - [Secure FTP != HTTPS](#secure-ftp--https)
+  - [Running the code](#running-the-code)
+    - [Install required libraries](#install-required-libraries)
+    - [Run `./setup.sh`](#run-setupsh)
+    - [Build](#build)
+    - [Run server and client files](#run-server-and-client-files)
+    - [Using different machines](#using-different-machines)
+  - [Testing](#testing)
+    - [Adding your own unit tests](#adding-your-own-unit-tests)
+    - [Adding your own integration tests](#adding-your-own-integration-tests)
+    - [AI-Assisted Unit Test Generation](#ai-assisted-unit-test-generation)
+  - [Intellisense Setup (VS)](#intellisense-setup-vs)
+  - [Sustainability and Inclusivity Features](#sustainability-and-inclusivity-features)
+    - [Inclusivity Feature:](#inclusivity-feature)
+
+## Group Members
+<table>
+  <tr>
+    <td>1009058</td>
+    <td>Lavanya Manivannan</td>
+  </tr>
+  <tr>
+    <td>1009192</td>
+    <td>Aryaman Parashar</td>
+  </tr>
+  <tr>
+    <td>1008752</td>
+    <td>Tan Rui Anh</td>
+  </tr>
+</table>
 
 ## Secure FTP != HTTPS
 
@@ -54,6 +86,32 @@ and:
 
 ```
 ./ClientWithoutSecurity
+```
+To run with AP:
+```
+./ServerWithSecurityAP
+```
+and:
+```
+./ClientWithSecurityAP
+```
+
+For CP1 (Public key encryption):
+```
+./ServerWithSecurityCP1
+```
+and:
+```
+./ClientWithSecurityCP1
+```
+
+For CP2 (Symmetric key encryption):
+```
+./ServerWithSecurityCP2
+```
+and:
+```
+./ClientWithSecurityCP2
 ```
 
 ### Using different machines
@@ -207,3 +265,9 @@ If you don't know which Mac you have, run `brew --prefix openssl` in the termina
 Reload the VS Code window after editing (Cmd/Ctrl+Shift+P, then "Developer: Reload Window") for IntelliSense to pick up the change.
 
 This only affects the editor. The Makefile already detects Homebrew's prefix via `brew --prefix openssl` and passes the include path to the compiler, so `make` works regardless of whether you set this up.
+
+## Sustainability and Inclusivity Features
+### Inclusivity Feature:
+Server and client side prints messages like "Waiting for verification..." to keep users informed about wait times, allowing non-tech savvy users to understand what their devices are doing during the handshake.
+
+Client side also prints an error message when the verification fails, to let the user know about the failed handshake. The specific reason for this failure is kept hidden (could not verify cert or could not verify message) to reduce the likelihood of malicious users gaining useful information about which part of the handshake failed.
