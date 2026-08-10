@@ -110,7 +110,6 @@ int main(int argc, char *argv[])
     if (!loadedCert || !verify_server_cert(loadedCert, "auth/cacsertificate.crt"))
     {
         printf("Server verification failed, exiting\n");
-        printf("Failed to verify cert\n");
         if (loadedCert)
             X509_free(loadedCert);
         free(signedMsg);
@@ -125,7 +124,6 @@ int main(int argc, char *argv[])
     if (!verify_message_pss(loadedCert, signedMsg, sig_len, (unsigned char*) message, message_len))
     {
         printf("Server verification failed, exiting\n");
-        printf("Failed to verify message\n");
         X509_free(loadedCert);
         free(signedMsg);
         free(serverCert);
