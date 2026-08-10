@@ -168,11 +168,12 @@ int main(int argc, char *argv[])
 
             unsigned char *len_buf = read_bytes(client_fd, INT_BYTES);
             uint64_t fn_len = bytes_to_int(len_buf);
-            char* authFile = read_bytes(client_fd, fn_len);
+            unsigned char* authFile = read_bytes(client_fd, fn_len);
+            size_t *sig_len = strlen(authFile);
 
             // Sign client's message
-            char* priv_key = load_private_key("private_key.pem");
-            authFile = sign_message_pss(priv_key, authFile, fn_len, 1024);
+            EVP_PKEY* priv_key = load_private_key("private_key.pem");
+            authFile = sign_message_pss(priv_key, authFile, fn_len, sig_len);
 
             // Sending set 1
             send_int(client_fd, 1024);
@@ -180,10 +181,9 @@ int main(int argc, char *argv[])
 
             free(priv_key);
             free(authFile);
-            free(fn_len);
 
             // Sending set 2
-            char* serverCert = load_cert_file("server_signed.crt");
+            X509* serverCert = load_cert_file("server_signed.crt");
             send_int(client_fd, sizeof(serverCert));
             send_all(client_fd, serverCert, sizeof(serverCert));
 

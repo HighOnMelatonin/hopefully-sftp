@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
     */
     // Checking server ID
     // Sending authentication message
-    char message[1024];
+    char message[1024] = "hello";
 
     send_int(sockfd, MSG_AUTH);
     send_int(sockfd, sizeof(message));                 // M1
@@ -87,7 +87,8 @@ int main(int argc, char *argv[])
     free(len_buf);
 
     // Check cert
-    if (!verify_server_cert(serverCert, "auth/cacsertificate.crt")){
+    X509* loadedCert = load_cert_bytes(serverCert, sizeof(serverCert));
+    if (!verify_server_cert(loadedCert, "auth/cacsertificate.crt")){
         printf("Server verification failed, exiting\n");
         printf("Failed to verify cert\n");
 
@@ -98,7 +99,7 @@ int main(int argc, char *argv[])
     }
 
     // Check message
-    if (!verify_message_pss(serverCert, signedMsg, sizeof(signedMsg), message, sizeof(message))){
+    if (!verify_message_pss(loadedCert, signedMsg, sizeof(signedMsg), (unsigned char*) message, sizeof(message))){
         printf("Server verification failed, exiting\n");
         printf("Failed to verify message\n");
 
@@ -108,10 +109,9 @@ int main(int argc, char *argv[])
         exit(0);
     }
 
-
-    free(message);
     free(signedMsg);
     free(serverCert);
+    free(message);
 
     // Checks done, server connected
     printf("Connected\n");
