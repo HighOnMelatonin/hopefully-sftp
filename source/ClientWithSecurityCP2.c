@@ -215,6 +215,18 @@ int main(int argc, char *argv[])
         size_t enc_file_size = 0;
         unsigned char *enc_file_data = session_encrypt(session_key, file_data, file_size, &enc_file_size);
         //encryption end
+        const char *base = strrchr(filename, '/');
+        base = base ? base + 1 : filename;
+        char outpath[4096];
+        snprintf(outpath, sizeof(outpath), "send_files_enc/enc_%s", base);
+
+        /* Write the file with 'recv_' prefix */
+        fp = fopen(outpath, "wb");
+        if (fp)
+        {
+            fwrite(enc_file_data, 1, enc_file_size, fp);
+            fclose(fp);
+        }
         /* Send the file data: [1][len][bytes] */
         send_int(sockfd, MSG_FILE_DATA);
         send_int(sockfd, (uint64_t)enc_file_size);

@@ -123,7 +123,18 @@ int main(int argc, char *argv[])
                 printf("error while trying to read file data\n");
                 break;
             }
+            const char *base = strrchr(filename, '/');
+            base = base ? base + 1 : filename;
+            char outpath[4096];
+            snprintf(outpath, sizeof(outpath), "recv_files_enc/enc_recv_%s", base);
 
+            /* Write the file with 'recv_' prefix */
+            FILE *fp = fopen(outpath, "wb");
+            if (fp)
+            {
+                fwrite(enc_file_data, 1, enc_file_len, fp);
+                fclose(fp);
+            }
             //Decryption begins
             EVP_PKEY *private_key= load_private_key("auth/private_key.pem");
             if(!private_key){
@@ -147,14 +158,12 @@ int main(int argc, char *argv[])
             }
 
             /* Extract basename and prepend "recv_" */
-            const char *base = strrchr(filename, '/');
+            base = strrchr(filename, '/');
             base = base ? base + 1 : filename;
-
-            char outpath[4096];
             snprintf(outpath, sizeof(outpath), "recv_files/recv_%s", base);
 
             /* Write the file with 'recv_' prefix */
-            FILE *fp = fopen(outpath, "wb");
+            fp = fopen(outpath, "wb");
             if (fp)
             {
                 fwrite(file_data, 1, file_len, fp);
