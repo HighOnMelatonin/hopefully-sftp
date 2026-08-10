@@ -166,7 +166,7 @@ unit: $(UNIT_BINS)
 # Integration tests
 # ----------------------------------------------------------------------
 
-integration: NoSec
+integration: all
 	@echo "==> Running integration tests"
 	@pass=0; fail=0; \
 	for s in $(INTEGRATION_DIR)/test_*.sh; do \
