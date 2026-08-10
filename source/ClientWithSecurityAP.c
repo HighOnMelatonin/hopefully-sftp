@@ -62,12 +62,26 @@ int main(int argc, char *argv[])
             M4: server_signed.crt
     */
     // Checking server ID
-    // Sending authentication message
-    char message[1024] = "hello";
-    size_t message_len = strlen(message);
+    // Sending authentication message, producing a random string
+    char message[128];
+    const size_t message_len = 32;
+    unsigned char random_bytes[message_len];
+    if (RAND_bytes(random_bytes, message_len) != 1)
+    {
+        print_ssl_error("RAND_bytes");
+        return 1;
+    }
+    const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                           "abcdefghijklmnopqrstuvwxyz"
+                           "0123456789";
+    for (size_t i = 0; i < message_len; i++)
+    {
+        message[i] = charset[random_bytes[i] % (sizeof(charset) - 1)];
+    }
+    message[message_len] = '\0';
 
     send_int(sockfd, MSG_AUTH);
-    send_int(sockfd, message_len);                 // M1
+    send_int(sockfd, message_len);                                  // M1
     send_all(sockfd, (unsigned char*) message, message_len);       // M2
 
     printf("Waiting for verification from server...\n");
