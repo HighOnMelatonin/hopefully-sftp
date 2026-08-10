@@ -114,7 +114,7 @@ int main(int argc, char *argv[])
             unsigned char *len_buf = read_bytes(client_fd, INT_BYTES);
             uint64_t enc_file_len = bytes_to_int(len_buf);
             free(len_buf);
-            if(enc_file_len = 0){
+            if(enc_file_len == 0){
                 break;
             }
             unsigned char *enc_file_data = read_bytes(client_fd, enc_file_len);

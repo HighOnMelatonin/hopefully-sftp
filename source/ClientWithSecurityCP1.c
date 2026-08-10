@@ -208,13 +208,13 @@ int main(int argc, char *argv[])
         size_t enc_file_size;
         unsigned char *enc_file_data;
         if (file_size ==0){
-            size_t enc_file_size = 128; // because only 1 block cause empty
+            enc_file_size = 128; // because only 1 block cause empty
             size_t out_len = 0;
-            unsigned char *enc_file_data = rsa_encrypt_block(public_key, NULL, 0, &out_len, 1);
+            *enc_file_data = rsa_encrypt_block(public_key, NULL, 0, &out_len, 1);
         }
         else{
-        size_t enc_file_size = (file_size + 61)/62 * 128; //here 128 is the no of bytes after encryption and 62 is the no of stuff yyou can input with a buffer
-        unsigned char *enc_file_data = malloc(enc_file_size);
+        enc_file_size = (file_size + 61)/62 * 128; //here 128 is the no of bytes after encryption and 62 is the no of stuff yyou can input with a buffer
+        *enc_file_data = malloc(enc_file_size);
 
         size_t read_data = 0;
         size_t enc_amount = 0;
