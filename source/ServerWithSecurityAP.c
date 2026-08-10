@@ -148,6 +148,17 @@ int main(int argc, char *argv[])
         case MSG_AUTH:
         {
             /*
+            Loop hole:
+            an eavesdropper records one legitimate exchange — the message, the server's signature
+            over it, and server_signed.crt. All three are sent in plaintext over the wire during AP,
+            so this is trivial to capture
+
+            Solution:
+            The client must generate a fresh random value (a nonce) as the "message" each
+            connection, and refuse to proceed unless the server's signed reply is over that 
+            specific nonce
+            */
+            /*
             Mode 3
             Client begins authentication protocol
             Upon successful connect, client must first send 3 (via send_int(sockfd, MSG_AUTH)) to the server,
@@ -164,35 +175,55 @@ int main(int argc, char *argv[])
                 M3: size of incoming M4
                 M4: server_signed.crt
             */
-            printf("Receiving auth message");
+            printf("Receiving auth message\n");
 
             unsigned char *len_buf = read_bytes(client_fd, INT_BYTES);
             uint64_t fn_len = bytes_to_int(len_buf);
-            unsigned char* authFile = read_bytes(client_fd, fn_len);
-            size_t *sig_len;
+            free(len_buf);
 
-            // Sign client's message
-            EVP_PKEY* priv_key = load_private_key("private_key.pem");
-            unsigned char *signature = sign_message_pss(priv_key, authFile, fn_len, sig_len);
+            unsigned char *authFile = read_bytes(client_fd, fn_len);
+            if (!authFile)
+                break;
 
-            // Sending set 1
-            send_int(client_fd, 128);
-            send_all(client_fd, authFile, 128);
+            size_t sig_len = 0;
+            EVP_PKEY *priv_key = load_private_key("auth/private_key.pem");
+            unsigned char *signature = sign_message_pss(priv_key, authFile, fn_len, &sig_len);
 
-            free(priv_key);
+            if (!signature || sig_len == 0)
+            {
+                free(authFile);
+                EVP_PKEY_free(priv_key);
+                break;
+            }
+
+            /* Send signed message */
+            send_int(client_fd, sig_len);
+            send_all(client_fd, signature, sig_len);
+
+            /* Send signed certificate in PEM form */
+            FILE *cert_fp = fopen("auth/server_signed.crt", "rb");
+            if (cert_fp)
+            {
+                fseek(cert_fp, 0, SEEK_END);
+                long cert_len = ftell(cert_fp);
+                fseek(cert_fp, 0, SEEK_SET);
+
+                if (cert_len > 0)
+                {
+                    unsigned char *cert_buf = malloc((size_t)cert_len);
+                    if (cert_buf && fread(cert_buf, 1, (size_t)cert_len, cert_fp) == (size_t)cert_len)
+                    {
+                        send_int(client_fd, (uint64_t)cert_len);
+                        send_all(client_fd, cert_buf, (uint64_t)cert_len);
+                    }
+                    free(cert_buf);
+                }
+                fclose(cert_fp);
+            }
+
             free(authFile);
-
-            // Sending set 2
-            X509* serverCert = load_cert_file("server_signed.crt");
-            unsigned char *cert_buf = NULL;
-            int cert_len = i2d_X509(serverCert, &cert_buf);
-
-            send_int(client_fd, cert_len);
-            send_all(client_fd, cert_buf, cert_len);
-
+            free(signature);
             EVP_PKEY_free(priv_key);
-            OPENSSL_free(cert_buf);
-            X509_free(serverCert);
             break;
         }
 

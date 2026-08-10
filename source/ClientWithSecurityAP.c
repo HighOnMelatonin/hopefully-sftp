@@ -64,34 +64,43 @@ int main(int argc, char *argv[])
     // Checking server ID
     // Sending authentication message
     char message[1024] = "hello";
+    size_t message_len = strlen(message);
 
     send_int(sockfd, MSG_AUTH);
-    send_int(sockfd, sizeof(message));                 // M1
-    send_all(sockfd, (unsigned char*) message, sizeof(message));       // M2
+    send_int(sockfd, message_len);                 // M1
+    send_all(sockfd, (unsigned char*) message, message_len);       // M2
 
-    listen(sockfd, 1);
     printf("Waiting for verification from server...\n");
 
-    // Get Set 1: auth message
-    unsigned char* len_buf = read_bytes(sockfd, INT_BYTES);
-    uint64_t msg_len = bytes_to_int(len_buf);
-    unsigned char* signedMsg = read_bytes(sockfd, msg_len);
-
+    /* Get Set 1: signed message */
+    unsigned char *len_buf = read_bytes(sockfd, INT_BYTES);
+    uint64_t sig_len = bytes_to_int(len_buf);
     free(len_buf);
+    unsigned char *signedMsg = read_bytes(sockfd, sig_len);
+    if (!signedMsg)
+        goto done;
 
-    // Get Set 2: cert
+    /* Get Set 2: server certificate */
     len_buf = read_bytes(sockfd, INT_BYTES);
     uint64_t cert_len = bytes_to_int(len_buf);
-    unsigned char* serverCert = read_bytes(sockfd, cert_len);
-
     free(len_buf);
+    unsigned char *serverCert = read_bytes(sockfd, cert_len);
+    if (!serverCert)
+    {
+        free(signedMsg);
+        goto done;
+    }
 
     // Check cert
-    X509* loadedCert = load_cert_bytes(serverCert, cert_len);
-    if (!verify_server_cert(loadedCert, "auth/cacsertificate.crt")){
+    X509 *loadedCert = load_cert_bytes(serverCert, cert_len);
+    if (!loadedCert || !verify_server_cert(loadedCert, "auth/cacsertificate.crt"))
+    {
         printf("Server verification failed, exiting\n");
         printf("Failed to verify cert\n");
-
+        if (loadedCert)
+            X509_free(loadedCert);
+        free(signedMsg);
+        free(serverCert);
         send_int(sockfd, MSG_CLOSE);
         printf("Closing connection...\n");
         close(sockfd);
@@ -99,16 +108,20 @@ int main(int argc, char *argv[])
     }
 
     // Check message
-    if (!verify_message_pss(loadedCert, signedMsg, msg_len, (unsigned char*) message, sizeof(message))){
+    if (!verify_message_pss(loadedCert, signedMsg, sig_len, (unsigned char*) message, message_len))
+    {
         printf("Server verification failed, exiting\n");
         printf("Failed to verify message\n");
-
+        X509_free(loadedCert);
+        free(signedMsg);
+        free(serverCert);
         send_int(sockfd, MSG_CLOSE);
         printf("Closing connection...\n");
         close(sockfd);
         exit(0);
     }
 
+    X509_free(loadedCert);
     free(signedMsg);
     free(serverCert);
 
