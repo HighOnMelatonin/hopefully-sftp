@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
-# tests/integration/test_cp1_transfer.sh
+# tests/integration/test_cp1_encryption_verify.sh
 #
-# Verifies full CP1 client/server: RSA-encrypted file transfer.
+# Confirms CP1 actually encrypts file data before sending it — not just
+# that the file round-trips correctly. Complements test_cp1_transfer.sh.
 
-set -euo pipefail #[cite: 5]
+set -euo pipefail
 
-source ./tests/integration/_lib.sh #[cite: 5]
-trap cleanup EXIT #[cite: 5]
+source ./tests/integration/_lib.sh
+trap cleanup EXIT
 
 SRC="files/file.txt"
-DST="recv_files/recv_file.txt"
 
 if [ ! -f "$SRC" ]; then
-  echo "FAIL: fixture $SRC missing." #[cite: 5]
+  echo "FAIL: fixture $SRC missing."
   exit 1
 fi
 
-reset_recv_files #[cite: 5]
+reset_recv_files
+rm -f "send_files_enc/enc_file.txt"
 
 ./ServerWithSecurityCP1 "$PORT" localhost > "$LOG_DIR/server.log" 2>&1 &
-SERVER_PID=$! #[cite: 5]
+SERVER_PID=$!
 
 for i in $(seq 1 50); do
   if ! kill -0 "$SERVER_PID" 2>/dev/null; then
@@ -43,7 +44,7 @@ done
 set +e
 printf '%s\n-1\n' "$SRC" | timeout 10s ./ClientWithSecurityCP1 \
   "$PORT" localhost > "$LOG_DIR/client.log" 2>&1
-CLIENT_RC=$? #[cite: 5]
+CLIENT_RC=$?
 set -e
 
 for i in $(seq 1 20); do
@@ -52,22 +53,21 @@ for i in $(seq 1 20); do
 done
 
 if [ "$CLIENT_RC" -ne 0 ]; then
-  echo "FAIL: client exited with status $CLIENT_RC" #[cite: 5]
-  dump_logs #[cite: 5]
-  exit 1
-fi
-
-
-if ! grep -q "Connected" "$LOG_DIR/client.log"; then
-  echo "FAIL: Client never reached Connected state"
+  echo "FAIL: client exited with status $CLIENT_RC"
   dump_logs
   exit 1
 fi
 
-if ! cmp -s "$SRC" "$DST"; then #[cite: 5]
-  echo "FAIL: $DST differs from $SRC" #[cite: 5]
+if [ ! -f "send_files_enc/enc_file.txt" ]; then
+  echo "FAIL: encrypted file not saved to send_files_enc/"
   dump_logs
   exit 1
 fi
 
-echo "PASS: CP1 RSA encryption/decryption and file transfer successful"
+if cmp -s "$SRC" "send_files_enc/enc_file.txt"; then
+  echo "FAIL: send_files_enc/enc_file.txt is identical to plaintext — file was not encrypted"
+  dump_logs
+  exit 1
+fi
+
+echo "PASS: CP1 encryption verified — send_files_enc/enc_file.txt differs from plaintext"
